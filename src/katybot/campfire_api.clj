@@ -27,7 +27,8 @@
 (declare get-json)
 (declare post)
 
-(defn campfire-async-api [account token]
+(defn campfire-async-api
+  [account token]
   (let [create-client #(httpc/create-client
           ;:proxy {:host "127.0.0.1" :port 8443 :protocol :https}
           :auth {:user token :password "x" :preemptive true}
@@ -83,16 +84,19 @@
           (let [url  (format "%s/room/%s.json" baseurl room)]
             (:room (get-json url client))))))))
 
-(defn- debug [state module & msg]
+(defn- debug
+  [state module & msg]
   (when (:debug state)
     (btw "[" (:room state) " " module "] " (apply str msg))))
 
-(defn- touch [state phase]
+(defn- touch
+  [state phase]
   (if (= :finished (:phase state))
     state
     (assoc state :phase phase, :last-accessed (now))))
 
-(defn- part-callback [msg-callback agnt state baos]
+(defn- part-callback
+  [msg-callback agnt state baos]
   (debug @agnt "callback" "got part \"" baos "\"")
   (send agnt touch :listening)
   ; TODO client callback thread: if msg-callback will take long enough, watchman may restart client
@@ -106,57 +110,67 @@
   (send agnt touch :listening)
   [baos :continue])
 
-(defn- err-callback [agnt resp thrwbl]
+(defn- err-callback
+  [agnt resp thrwbl]
   (if (= (class thrwbl) java.util.concurrent.CancellationException) ; normal finish
     (debug @agnt "callback" thrwbl)
     (omg! "Campfire connection error: " thrwbl))
   (send agnt touch :broken)
   thrwbl)
 
-(defn- done-callback [agnt resp]
+(defn- done-callback
+  [agnt resp]
   (omg! "Campfire connection closed by remote host")
   (send agnt touch :dropped)
   [true :continue])
 
-(defn connect [state]
+(defn connect
+  [state]
   (debug state "agent" "connecting")
   (let [{:keys [room api client msg-callback]} state
         url (format "https://streaming.campfirenow.com/room/%s/live.json" room)]
     (join api room) ; just in case we were kicked
-    (binding [httpr/*default-callbacks* (merge httpr/*default-callbacks* 
+    (binding [httpr/*default-callbacks* (merge httpr/*default-callbacks*
               {:completed (partial done-callback *agent*)
                :error     (partial err-callback  *agent*)})]
       (-> state
         (touch :listening)
-        (assoc :resp (httpc/request-stream client :get url (partial part-callback msg-callback *agent*)))))))
+        (assoc :resp (httpc/request-stream
+                      client :get url (partial part-callback
+                                               msg-callback *agent*)))))))
 
-(defn disconnect [state]
+(defn disconnect
+  [state]
   (debug state "agent" "disconnecting")
   (if (= (:phase state) :listening)
     (httpc/cancel (:resp state)))
   state)
 
-(defn reconnect [state]
+(defn reconnect
+  [state]
   (fyi "Reconnecting to room " (:room state) "...")
   (debug state "agent" "reconnecting from " (:phase state))
   (-> state
     disconnect
     connect))
 
-(defn finish [state]
+(defn finish
+  [state]
   (debug state "agent" "finish")
   (with-open [client (:client state)]
     (-> state
       disconnect
       (assoc :phase :finished))))
 
-(defn- doctor [agnt e]
+(defn- doctor
   "Fix agent if exception was thrown in agent thread"
+  [agnt e]
   (omg! "Exception in room-agent " (:room @agnt) ": " e)
   (send agnt touch :broken))
 
-(defn- watchman [agnt]
+(defn- watchman
   "Check agent status every *check-interval* ms and restart if it stuck"
+  [agnt]
   (let [{:keys [phase resp last-accessed] :as state} @agnt
         delay (- (now) last-accessed)]
     (debug state "watchman" "agent is " phase ", " delay "ms since last activity")
@@ -168,11 +182,13 @@
         :continue)
       :else :continue)))
 
-(defn- logger [room _ agnt old-state new-state]
+(defn- logger
+  [room _ agnt old-state new-state]
   (when (not= (:phase old-state) (:phase new-state))
     (debug new-state "logger" (:phase old-state) " -> " (:phase new-state))))
 
-(defn room-agent [api client room msg-callback]
+(defn room-agent
+  [api client room msg-callback]
   (let [agnt (agent {:api    api
                      :client client
                      :room   room
@@ -186,9 +202,10 @@
       (send touch :init)
       (send connect))))
 
-(defn- get-json [url client & query]
+(defn- get-json
+  [url client & query]
   (btw "HTTP GET: " url)
-  (let [resp   (httpc/await (httpc/GET client url 
+  (let [resp   (httpc/await (httpc/GET client url
                               :headers *headers*
                               :user-agent *user-agent*
                               :timeout *stuck-timeout*
@@ -200,7 +217,8 @@
       (not= status 200)    (throw (Exception. (str url ": " status res "\n" (httpc/headers resp))))
       :else (json/read-json res))))
 
-(defn- post [url client body]
+(defn- post
+  [url client body]
   (btw "HTTP POST:\n  " url "\n  " body)
   (let [resp (httpc/await (httpc/POST client url
                             :body body

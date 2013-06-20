@@ -2,13 +2,15 @@
   (:use katybot.utils)
   (:require [clojure.string :as str]))
 
-(defn reload-robot []
+(defn reload-robot
+  []
   (doseq [module ["utils" "core" "brain" "campfire" "console" "atom_memory" "file_memory"]]
     (fyi "Loading " module)
     (load module)
     (use (-> (str "katybot." module) (str/replace "_" "-") symbol))))
 
-(defn- load-dir [dir]
+(defn- load-dir
+  [dir]
   (fyi "Loading " dir ":")
   (doseq [f (->> (file-seq (clojure.java.io/as-file dir))
                  (filter  #(-> (.getName %) (.endsWith ".clj")))
@@ -19,7 +21,8 @@
 (defn reload-reflexes []
   (load-dir "reflexes"))
 
-(defn reload-all []
+(defn reload-all
+  []
   (fyi "Loading repl")
   (load "repl")
   (use 'katybot.repl))
@@ -27,7 +30,8 @@
 (reload-robot)
 (reload-reflexes)
 
-(defn listen-console []
+(defn listen-console
+  []
   (-> (new-robot)
     (+file-memory "robot.memory")
     (+console-receptor)
